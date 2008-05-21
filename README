@@ -1,0 +1,41 @@
+Has Encrypted Attributes
+=====================================
+
+Allows a model to store attributes encrypted in the database. It seamlessly 
+encrypts/decrypts the data for use within the application.
+
+Can set the key in the definition using :key => <key string> or by providing 
+an association that contains the key.
+
+Using :except in the definition allows for unencrypted attributes in the mix.
+By default the _id of the association is excluded (ie: user_id), if needed 
+and the usual created_at, updated_at, created_on, updated_on columns.
+
+Requires:
+  crypt gem : used for the Blowfish symmetric algorithm
+
+
+Example
+=====================================
+
+class Secrets
+  has_encrypted_attributes :key => 'THIS IS MY KEY TEXT'
+end
+
+class MoreSecrets
+  has_encrypted_attributes :association => :user
+  # looks for key in self.user.key
+end
+
+class StillMoreSecrets
+  has_encrypted_attributes :association => :user, :key_method => :salt
+  # looks for key in self.user.salt
+end
+
+class MostSecrets
+  has_encrypted_attributes :exclude => [:year, :count]
+  # will not try to encrypt year and count attributes
+end
+
+
+Copyright (c) 2008 Shawn Veader, released under the MIT license
