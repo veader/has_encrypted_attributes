@@ -4,8 +4,8 @@ Has Encrypted Attributes
 Allows a model to store attributes encrypted in the database. It seamlessly 
 encrypts/decrypts the data for use within the application.
 
-Can set the key in the definition using :key => <key string> or by providing 
-an association that contains the key.
+Set the key in the definition using :key => <key string> or by providing an 
+association that contains the key.
 
 Using :except in the definition allows for unencrypted attributes in the mix.
 By default the _id of the association is excluded (ie: user_id), if needed 
