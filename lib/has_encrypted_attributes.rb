@@ -9,11 +9,12 @@ module Has                                  #:nodoc:
   
     module Encrypted
       def has_encrypted_attributes(options={})
-        cattr_accessor :encrypted_key_assoc, :encrypted_key_method, :encrypted_key_value, :encrypted_exceptions, :encrypted_block_size, :encrypted_max_key_len
+        cattr_accessor :encrypted_key_assoc, :encrypted_key_method, :encrypted_key_value, :encrypted_exceptions, :encrypted_block_size, :encrypted_max_key_len, :encrypted_attributes
         self.encrypted_key_assoc    = options[:association] || nil
         self.encrypted_key_method   = options[:key_method] || :key
         self.encrypted_key_value    = options[:key] || nil
         self.encrypted_exceptions   = options[:except].map(&:to_s) rescue []
+        self.encrypted_attributes   = options[:only].map(&:to_s) rescue []
         self.encrypted_block_size   = 8
         self.encrypted_max_key_len  = 56
       
@@ -26,22 +27,38 @@ module Has                                  #:nodoc:
   
     module InstanceMethods
       def encrypt_attributes(key=nil)
-        exclude_usual_suspects # TODO: figure out how to move this
         key = find_key(key)
-        
-        self.attributes.reject { |a,v| self.encrypted_exceptions.include?(a) }.each do |attr,value|
-          next unless value
-          self.send("#{attr}=", encrypt_attribute(value,key)) rescue raise("#{attr} has value of #{value} which is not a string")
+
+        if self.encrypted_attributes.blank?
+          exclude_usual_suspects # TODO: figure out how to move this
+          self.attributes.reject { |a,v| self.encrypted_exceptions.include?(a) }.each do |attr,value|
+            next unless value
+            self.send("#{attr}=", encrypt_attribute(value,key)) rescue nil # raise("#{attr} has value of #{value} which is not a string")
+          end
+        else
+          # use the :only clause
+          self.encrypted_attributes.each do |attr|
+            next unless self.send(attr)
+            self.send("#{attr}=", encrypt_attribute(self.send(attr), key)) rescue nil # raise("#{attr} has a value of #{value} which is not a string")
+          end
         end
       end
     
       def decrypt_attributes(key=nil)
-        exclude_usual_suspects # TODO: figure out how to move this
         key = find_key(key)
-        
-        self.attributes.reject { |a,v| self.encrypted_exceptions.include?(a) }.each do |attr,value|
-          next unless value
-          self.send("#{attr}=", decrypt_attribute(value,key))
+
+        if self.encrypted_attributes.blank?
+          exclude_usual_suspects # TODO: figure out how to move this
+          self.attributes.reject { |a,v| self.encrypted_exceptions.include?(a) }.each do |attr,value|
+            next unless value
+            self.send("#{attr}=", decrypt_attribute(value,key))
+          end
+        else
+          # use the :only clause
+          self.encrypted_attributes.each do |attr|
+            next unless self.send(attr)
+            self.send("#{attr}=", decrypt_attribute(self.send(attr), key)) 
+          end
         end
       end
       

@@ -110,6 +110,16 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
     secret = Secret.create(:who_killed_jfk => jfk_assassin)
     assert_equal jfk_assassin, secret.who_killed_jfk
   end
+  
+  def test_should_encrypt_only_attributes_in_only_clause(key='59234ARI85A')
+    Secret.has_encrypted_attributes :key => key, :only => [:current_president]
+    
+    jfk_assassin = 'Myster Man'
+    president = 'George Dubbya Bush'
+    secret = Secret.create(:who_killed_jfk => jfk_assassin, :current_president => president)
+    assert_not_equal president, Secret.connection.select_rows("SELECT current_president FROM secrets WHERE ID = #{secret.id};")[0][0]
+    assert_equal jfk_assassin, Secret.connection.select_rows("SELECT who_killed_jfk FROM secrets WHERE ID = #{secret.id};")[0][0]
+  end
 
 private
   def setup_with_association_no_key_defined
