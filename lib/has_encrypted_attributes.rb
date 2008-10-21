@@ -16,10 +16,10 @@ module Has                                  #:nodoc:
         self.encrypted_block_size  = 8
         self.encrypted_max_key_len = 56
         self.encrypted_key_assoc   = options[:association] || nil
-        self.encrypted_key_method  = options[:key_method] || :key
-        self.encrypted_key_value   = options[:key] || nil
-        self.encrypted_exceptions  = options[:except]
-        self.encrypted_attributes  = options[:only]
+        self.encrypted_key_method  = options[:key_method]  || :key
+        self.encrypted_key_value   = options[:key]         || nil
+        self.encrypted_exceptions  = options[:except]      || []
+        self.encrypted_attributes  = options[:only]        || []
 
         include InstanceMethods
 
@@ -35,7 +35,7 @@ module Has                                  #:nodoc:
         prepare_encryption_attributes
 
         if self.encrypted_attributes.blank?
-          without_excluded_attributes.each do |attr,value|
+          attributes_without_excluded.each do |attr,value|
             next unless value
             self.send("#{attr}=", encrypt_attribute(value,key)) rescue nil
           end
@@ -54,7 +54,7 @@ module Has                                  #:nodoc:
         prepare_encryption_attributes
 
         if self.encrypted_attributes.blank?
-          without_excluded_attributes.each do |attr,value|
+          attributes_without_excluded.each do |attr,value|
             next unless value
             self.send("#{attr}=", decrypt_attribute(value,key)) rescue nil
           end
@@ -89,7 +89,7 @@ module Has                                  #:nodoc:
         self.encrypted_exceptions |= exclude
       end
 
-      def without_excluded_attributes
+      def attributes_without_excluded
         self.attributes.reject { |a,v| self.encrypted_exceptions.include?(a) }
       end
 
