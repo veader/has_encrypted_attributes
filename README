@@ -33,7 +33,7 @@ class StillMoreSecrets
 end
 
 class MostSecrets
-  has_encrypted_attributes :exclude => [:year, :count]
+  has_encrypted_attributes :except => [:year, :count]
   # will not try to encrypt year and count attributes
 end
 
