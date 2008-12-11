@@ -1,7 +1,21 @@
+require 'exceptions'
+require 'base64'
+require 'digest/sha2'
+
+begin
+  require 'openssl'
+rescue
+  raise Has::EncryptedAttributes::RubyCompiledWithoutOpenSSL
+end
+
+begin
+  OpenSSL::Cipher::Cipher.new('BF-CBC')
+rescue
+  raise Has::EncryptedAttributes::BlowfishCBCAlgorithmNotSupported
+end
+
 module Has                                  #:nodoc:
   module EncryptedAttributes                #:nodoc:
-    class NoEncryptionKeyGiven < Exception  #:nodoc:
-    end
 
     def self.included(base)                 #:nodoc:
       base.extend Encrypted
@@ -109,34 +123,26 @@ module Has                                  #:nodoc:
         k[0,self.encrypted_max_key_len] # make sure key is not too long
       end
 
-      def encrypt_attribute(str, key)
-        raise unless str.is_a?(String)
-        blowfish = Crypt::Blowfish.new(key)
+      def encrypt_attribute(plaintext, key)
+        raise unless plaintext.is_a?(String)
 
-        # split text into blocks and encrypt
-        blocks = (0..(str.length/self.encrypted_block_size)).collect do |i|
-          block = str[(i*self.encrypted_block_size),8]
-          # we need to pad up to block size
-          block = block.ljust(self.encrypted_block_size)
-          blowfish.encrypt_block(block)
-        end
+        blowfish     = OpenSSL::Cipher::Cipher.new('BF-CBC')
+        blowfish.key = key = Digest::SHA2.hexdigest(key)
+        blowfish.iv  = iv  = Digest::SHA2.hexdigest(key)
 
-        Base64.encode64(blocks.join)
+        blowfish.encrypt
+        encrypted = blowfish.update(plaintext)
+        Base64.encode64(encrypted << blowfish.final)
       end
 
-      def decrypt_attribute(str, key)
-        blowfish = Crypt::Blowfish.new(key)
+      def decrypt_attribute(encrypted, key)
+        blowfish     = OpenSSL::Cipher::Cipher.new('BF-CBC')
+        blowfish.key = key = Digest::SHA2.hexdigest(key)
+        blowfish.iv  = iv  = Digest::SHA2.hexdigest(key)
 
-        # split text into blocks and decrypt
-        str = Base64.decode64(str)
-        blocks = (0..(str.length/self.encrypted_block_size)).collect do |i|
-          block = str[(i*self.encrypted_block_size),8]
-          # make sure the block isn't empty before trying to decrypt it
-          next if block.strip.empty?
-          blowfish.decrypt_block(block) rescue nil
-        end
-
-        blocks.compact.join.strip!
+        blowfish.decrypt
+        decrypted =  blowfish.update(Base64.decode64(encrypted))
+        decrypted << blowfish.final
       end
 
       def prepare_encryption_attributes
