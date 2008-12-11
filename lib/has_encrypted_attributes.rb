@@ -1,3 +1,7 @@
+require 'openssl'
+require 'digest/sha2'
+require 'base64'
+
 module Has                                  #:nodoc:
   module EncryptedAttributes                #:nodoc:
     class NoEncryptionKeyGiven < Exception  #:nodoc:
@@ -111,32 +115,27 @@ module Has                                  #:nodoc:
 
       def encrypt_attribute(str, key)
         raise unless str.is_a?(String)
-        blowfish = Crypt::Blowfish.new(key)
 
-        # split text into blocks and encrypt
-        blocks = (0..(str.length/self.encrypted_block_size)).collect do |i|
-          block = str[(i*self.encrypted_block_size),8]
-          # we need to pad up to block size
-          block = block.ljust(self.encrypted_block_size)
-          blowfish.encrypt_block(block)
-        end
+        blowfish = OpenSSL::Cipher::Cipher.new('BF-CBC')
+        blowfish.encrypt
+        blowfish.key = key = Digest::SHA2.hexdigest(key)
+        blowfish.iv  = iv  = Digest::SHA2.hexdigest(key)
+        encrypted =  blowfish.update(str)
+        encrypted << blowfish.final
 
-        Base64.encode64(blocks.join)
+        Base64.encode64(encrypted)
       end
 
       def decrypt_attribute(str, key)
-        blowfish = Crypt::Blowfish.new(key)
+        encrypted = Base64.decode64(str)
 
-        # split text into blocks and decrypt
-        str = Base64.decode64(str)
-        blocks = (0..(str.length/self.encrypted_block_size)).collect do |i|
-          block = str[(i*self.encrypted_block_size),8]
-          # make sure the block isn't empty before trying to decrypt it
-          next if block.strip.empty?
-          blowfish.decrypt_block(block) rescue nil
-        end
+        blowfish = OpenSSL::Cipher::Cipher.new('BF-CBC')
+        blowfish.decrypt
+        blowfish.key = key = Digest::SHA2.hexdigest(key)
+        blowfish.iv  = iv  = Digest::SHA2.hexdigest(key)
 
-        blocks.compact.join.strip!
+        decrypted =  blowfish.update(encrypted)
+        decrypted << blowfish.final
       end
 
       def prepare_encryption_attributes
