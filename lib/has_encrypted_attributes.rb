@@ -1,6 +1,6 @@
-require 'exceptions'
 require 'base64'
 require 'digest/sha2'
+require 'exceptions'
 
 begin
   require 'openssl'
@@ -11,13 +11,12 @@ end
 begin
   OpenSSL::Cipher::Cipher.new('BF-CBC')
 rescue
-  raise Has::EncryptedAttributes::BlowfishCBCAlgorithmNotSupported
+  raise Has::EncryptedAttributes::BlowfishCBCAlgorithmNotSupportedByOpenSSL
 end
 
-module Has                                  #:nodoc:
-  module EncryptedAttributes                #:nodoc:
-
-    def self.included(base)                 #:nodoc:
+module Has                   #:nodoc:
+  module EncryptedAttributes #:nodoc:
+    def self.included(base)  #:nodoc:
       base.extend Encrypted
     end
 
