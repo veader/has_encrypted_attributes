@@ -4,29 +4,28 @@ require 'pp'
 include Has::EncryptedAttributes
 
 class HasEncryptedAttributesTest < Test::Unit::TestCase
-  fixtures :users, :secrets
+  fixtures :users
 
-  def setup
-    # ActiveRecord::Base.logger = Logger.new(STDOUT)
-    # ActiveRecord::Base.clear_active_connections!
+  def teardown
+    @secret_klass = nil
   end
 
   # ========================================================================
   # TEST setup
 
   def test_should_allow_association
-    setup_with_association_no_key_defined
+    secret_klass = setup_with_association_no_key_defined
 
-    secret = Secret.new
+    secret = secret_klass.new
     assert_equal :user, secret.encrypted_key_assoc
     assert_equal :key, secret.encrypted_key_method
     assert_nil secret.encrypted_key_value
   end
 
   def test_should_allow_association_with_alt_key
-    setup_with_association_with_key_defined
+    secret_klass = setup_with_association_with_key_defined
 
-    secret = Secret.new
+    secret = secret_klass.new
     assert_equal :user, secret.encrypted_key_assoc
     assert_equal :alternate_key, secret.encrypted_key_method
     assert_nil secret.encrypted_key_value
@@ -34,28 +33,28 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
 
   def test_should_allow_explicit_key
     key = 'test1234'
-    setup_with_key_value_defined(key)
+    secret_klass = setup_with_key_value_defined(key)
 
-    secret = Secret.new
+    secret = secret_klass.new
     assert_nil secret.encrypted_key_assoc
     assert_equal key, secret.encrypted_key_value
   end
 
   def test_should_require_key
-    setup_with_key_value_defined(nil)
+    secret_klass = setup_with_key_value_defined(nil)
 
     assert_raise(NoEncryptionKeyGiven) {
-      Secret.create(:who_killed_jfk => 'test')
+      secret_klass.create(:who_killed_jfk => 'test')
     }
 
     setup_with_association_no_key_defined
     assert_raise(NoEncryptionKeyGiven) {
-      Secret.create(:who_killed_jfk => 'test')
+      secret_klass.create(:who_killed_jfk => 'test')
     }
 
     setup_with_association_with_key_defined
     assert_raise(NoEncryptionKeyGiven) {
-      Secret.create(:who_killed_jfk => 'test')
+      secret_klass.create(:who_killed_jfk => 'test')
     }
   end
 
@@ -63,49 +62,52 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
   # TEST :except and :only statements
 
   def test_should_allow_single_symbol_attributes_in_except_param
-    setup_with_key_value_defined
+    @secret_klass = setup_with_key_value_defined
 
     do_nonencryption_test
   end
 
   def test_should_allow_single_string_attributes_in_except_param
-    setup_with_key_value_defined('45FGIRG91923G', true)
+    @secret_klass = setup_with_key_value_defined('45FGIRG91923G', true)
 
     do_nonencryption_test
   end
 
   def test_should_allow_arrays_of_symbols_in_except_param
-    setup_with_key_value_defined_exception_as_array
+    @secret_klass = setup_with_key_value_defined_exception_as_array
 
     do_nonencryption_test
   end
 
   def test_should_allow_arrays_of_strings_in_except_param
-    setup_with_key_value_defined_exception_as_array('45FGIRG91923G', true)
+    @secret_klass = setup_with_key_value_defined_exception_as_array(
+      '45FGIRG91923G', true)
 
     do_nonencryption_test
   end
 
   def test_should_allow_single_symbol_attributes_in_only_clause
-    setup_with_key_value_defined_and_only_clause
+    @secret_klass = setup_with_key_value_defined_and_only_clause
 
     do_encryption_test2
   end
 
   def test_should_allow_single_string_attributes_in_only_clause
-    setup_with_key_value_defined_and_only_clause('45FGIRG91923G', true)
+    @secret_klass = setup_with_key_value_defined_and_only_clause(
+      '45FGIRG91923G', true)
 
     do_encryption_test2
   end
 
   def test_should_allow_arrays_of_symbols_in_only_clause
-    setup_with_key_value_defined_and_only_clause_as_array
+    @secret_klass = setup_with_key_value_defined_and_only_clause_as_array
 
     do_encryption_test2
   end
 
   def test_should_allow_arrays_of_strings_in_only_clause
-    setup_with_key_value_defined_and_only_clause_as_array('FGIRG91923G', true)
+    @secret_klass = setup_with_key_value_defined_and_only_clause_as_array(
+      'FGIRG91923G', true)
 
     do_encryption_test2
   end
@@ -114,20 +116,20 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
   # TEST :except in action
 
   def test_should_not_encrypt_exception_attributes_with_set_key
-    setup_with_key_value_defined
+    @secret_klass = setup_with_key_value_defined
 
     do_nonencryption_test
   end
 
   def test_should_not_encrypt_exception_attributes_with_assoc_key
-    setup_with_association_no_key_defined
+    @secret_klass = setup_with_association_no_key_defined
     user = create_user
 
     do_nonencryption_test(user)
   end
 
   def test_should_not_encrypt_exception_attributes_with_assoc_alt_key
-    setup_with_association_with_key_defined
+    @secret_klass = setup_with_association_with_key_defined
     user = create_user
 
     do_nonencryption_test(user)
@@ -137,36 +139,39 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
   # TEST :only in action
 
   def test_should_encrypt_only_attributes_in_only_clause
-    setup_with_key_value_defined_and_only_clause
+    @secret_klass = setup_with_key_value_defined_and_only_clause
 
     jfk_assassin = 'Myster Man'
     president = 'George Dubbya Bush'
-    secret = Secret.create(:who_killed_jfk    => jfk_assassin,
-                           :current_president => president)
+    secret = @secret_klass.create(:who_killed_jfk    => jfk_assassin,
+                                     :current_president => president)
     sql1 = "SELECT current_president FROM secrets WHERE ID = #{secret.id};"
     sql2 = "SELECT who_killed_jfk FROM secrets WHERE ID = #{secret.id};"
-    assert_not_equal president, Secret.connection.select_rows(sql1)[0][0]
-    assert_equal jfk_assassin,  Secret.connection.select_rows(sql2)[0][0]
+    assert_not_equal president,
+      @secret_klass.connection.select_rows(sql1)[0][0]
+
+    assert_equal jfk_assassin,
+      @secret_klass.connection.select_rows(sql2)[0][0]
   end
 
   # ========================================================================
   # TEST encryption in action
 
   def test_should_encrypt_attributes_with_set_key
-    setup_with_key_value_defined
+    @secret_klass = setup_with_key_value_defined
 
     do_encryption_test
   end
 
   def test_should_encrypt_attributes_wth_assoc_key
-    setup_with_association_no_key_defined
+    @secret_klass = setup_with_association_no_key_defined
     user = create_user
 
     do_encryption_test(user)
   end
 
   def test_should_encrypt_attributes_with_assoc_alt_key
-    setup_with_association_with_key_defined
+    @secret_klass = setup_with_association_with_key_defined
     user = create_user
 
     do_encryption_test(user)
@@ -176,58 +181,80 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
   # TEST after_* in action
 
   def test_should_show_unencrypted_attributes_in_model_after_save
-    setup_with_key_value_defined
+    @secret_klass = setup_with_key_value_defined
 
     jfk_assassin = 'Mystery Man'
-    secret = Secret.create(:who_killed_jfk => jfk_assassin)
+    secret = @secret_klass.create(:who_killed_jfk => jfk_assassin)
     assert_equal jfk_assassin, secret.who_killed_jfk
   end
 
 # ========================================================================
 private
+  def new_secret_class
+    klass = Class.new(ActiveRecord::Base)
+    klass.set_table_name :secrets
+    klass.belongs_to     :user
+    klass
+  end
+
   def setup_with_association_no_key_defined
-    Secret.has_encrypted_attributes :association => :user,
-                                    :except      => [:current_president]
+    klass = new_secret_class
+    klass.has_encrypted_attributes :association => :user,
+                                   :except      => [:current_president]
+    klass
   end
 
   def setup_with_association_with_key_defined
-    Secret.has_encrypted_attributes :association => :user,
-                                    :key_method  => :alternate_key,
-                                    :except      => [:current_president]
+    klass = new_secret_class
+    klass.has_encrypted_attributes :association => :user,
+                                   :key_method  => :alternate_key,
+                                   :except      => [:current_president]
+    klass
   end
 
   def setup_with_key_value_defined(key='45FGIRG91923G', use_string=false)
+    klass = new_secret_class
     exceptions = (use_string ? 'current_president' : :current_president)
-    Secret.has_encrypted_attributes :key => key, :except => exceptions
+    klass.has_encrypted_attributes :key => key, :except => exceptions
+    klass
   end
 
   def setup_with_key_value_defined_exception_as_array( \
       key='45FGIRG91923G', use_string=false )
+
+    klass = new_secret_class
 
     exceptions = if use_string
       ['current_president', 'who_killed_jfk']
     else
       [:current_president, :who_killed_jfk]
     end
-    Secret.has_encrypted_attributes :key => key, :except => exceptions
+    klass.has_encrypted_attributes :key => key, :except => exceptions
+    klass
   end
 
   def setup_with_key_value_defined_and_only_clause( \
       key='59234ARI85A', use_string=false )
 
+    klass = new_secret_class
+
     only_clause = (use_string ? 'current_president' : :current_president)
-    Secret.has_encrypted_attributes :key => key, :only => only_clause
+    klass.has_encrypted_attributes :key => key, :only => only_clause
+    klass
   end
 
   def setup_with_key_value_defined_and_only_clause_as_array( \
       key='59234ARI85A', use_string=false )
+
+    klass = new_secret_class
 
     only_clause = if use_string
       ['current_president', 'who_killed_jfk']
     else
       [:current_president, :who_killed_jfk]
     end
-    Secret.has_encrypted_attributes :key => key, :only => only_clause
+    klass.has_encrypted_attributes :key => key, :only => only_clause
+    klass
   end
 
   def create_user
@@ -238,22 +265,22 @@ private
 
   def do_encryption_test(user=nil)
     jfk_assassin = 'Mystery Man'
-    secret = Secret.create(:who_killed_jfk => jfk_assassin, :user => user)
+    secret = @secret_klass.create(:who_killed_jfk => jfk_assassin, :user => user)
     sql    = "SELECT who_killed_jfk FROM secrets WHERE ID = #{secret.id};"
-    assert_not_equal jfk_assassin, Secret.connection.select_rows(sql)[0][0]
+    assert_not_equal jfk_assassin, @secret_klass.connection.select_rows(sql)[0][0]
   end
 
   def do_encryption_test2
     president = 'George Dubbya Bush'
-    secret = Secret.create(:current_president => president)
+    secret = @secret_klass.create(:current_president => president)
     sql    = "SELECT current_president FROM secrets WHERE ID = #{secret.id};"
-    assert_not_equal president, Secret.connection.select_rows(sql)[0][0]
+    assert_not_equal president, @secret_klass.connection.select_rows(sql)[0][0]
   end
 
   def do_nonencryption_test(user=nil)
     president = 'George Dubbya Bush'
-    secret = Secret.create(:current_president => president, :user => user)
+    secret = @secret_klass.create(:current_president => president, :user => user)
     sql    = "SELECT current_president FROM secrets WHERE ID = #{secret.id};"
-    assert_equal president, Secret.connection.select_rows(sql)[0][0]
+    assert_equal president, @secret_klass.connection.select_rows(sql)[0][0]
   end
 end
