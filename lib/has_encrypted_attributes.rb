@@ -21,147 +21,96 @@ module Has                   #:nodoc:
     end
 
     module Encrypted
-      def has_encrypted_attributes(options={})
+      def normalize_hae_options(opts)
+        (opts.is_a?(Array) ? opts : [ opts ]).reject(&:blank?).map(&:to_s)
+      end
+
+      def has_encrypted_attributes(options = {})
         cattr_accessor :encrypted_key_assoc, :encrypted_key_method,
-                       :encrypted_key_value, :encrypted_exceptions,
-                       :encrypted_block_size, :encrypted_max_key_len,
-                       :encrypted_attributes
-        self.encrypted_block_size  = 8
-        self.encrypted_max_key_len = 56
-        self.encrypted_key_assoc   = options[:association] || nil
-        self.encrypted_key_method  = options[:key_method]  || :key
-        self.encrypted_key_value   = options[:key]         || nil
-        self.encrypted_exceptions  = options[:except]      || []
-        self.encrypted_attributes  = options[:only]        || []
+                       :encrypted_key_value
+
+        self.encrypted_key_assoc  = options[:association] || nil
+        self.encrypted_key_method = options[:key_method]  || :key
+        self.encrypted_key_method = encrypted_key_method.to_sym
+        self.encrypted_key_value  = options[:key]
+
+        to_encrypt = normalize_hae_options(options[:only])
+
+        # Encrypt all attributes (so far) if 'only' was not given:
+        to_encrypt = columns.map { |c| c.name.to_s } if to_encrypt.blank?
+
+        # But not the association ID if we are using one:
+        to_encrypt -= [ "#{encrypted_key_assoc}_id" ] if encrypted_key_assoc
+
+        # And not these usual suspects:
+        to_encrypt -= %W[
+          created_at created_on updated_at updated_on #{primary_key} ]
+
+        # And finally, not the ones the user chose to exclude:
+        to_encrypt -= normalize_hae_options(options[:except])
 
         include InstanceMethods
 
-        before_save :encrypt_attributes
-        # decrypt the attributes in case we need them after save
-        after_save :decrypt_attributes
+        to_encrypt.each do |mth|
+          define_method(mth.to_sym) do
+            @attributes[mth].nil? ? nil : decrypt_encrypted(@attributes[mth])
+          end
+
+          define_method("#{mth}=".to_sym) do |plaintext|
+            @attributes[mth] = if plaintext.blank?
+              nil
+            else
+              encrypt_plaintext plaintext.to_s
+            end
+          end
+        end
       end
     end
 
     module InstanceMethods
-      def encrypt_attributes(key=nil)
-        key = find_key(key)
-        prepare_encryption_attributes
 
-        if self.encrypted_attributes.blank?
-          attributes_without_excluded.each do |attr,value|
-            next unless value
-            self.send("#{attr}=", encrypt_attribute(value,key)) rescue nil
-          end
-        else
-          # use the :only clause
-          self.encrypted_attributes.each do |attr|
-            value = self.send(attr)
-            next unless value
-            self.send("#{attr}=", encrypt_attribute(value, key)) rescue nil
-          end
-        end
-      end
-
-      def decrypt_attributes(key=nil)
-        key = find_key(key)
-        prepare_encryption_attributes
-
-        if self.encrypted_attributes.blank?
-          attributes_without_excluded.each do |attr,value|
-            next unless value
-            self.send("#{attr}=", decrypt_attribute(value,key)) rescue nil
-          end
-        else
-          # use the :only clause
-          self.encrypted_attributes.each do |attr|
-            value = self.send(attr)
-            next unless value
-            self.send("#{attr}=", decrypt_attribute(value, key)) rescue nil
-          end
-        end
+    private
+      def key_holder
+        self.send(encrypted_key_assoc)
       end
 
       def encryption_key
-        find_key
-      end
+        @encryption_key ||= begin
+          key = if encrypted_key_value.present?
+            encrypted_key_value # use key given in definition
+          elsif encrypted_key_assoc && encrypted_key_method
+            # use the key from the association given in definition
+            if key_holder.respond_to?(encrypted_key_method)
+              key_holder.send(encrypted_key_method)
+            end
+          end
 
-    protected
-      def after_find
-        decrypt_attributes
-      end
-
-      def exclude_usual_suspects
-        # TODO: remove some types such as date/time and integers
-        exclude = %w(created_at created_on updated_at updated_on id)
-
-        # exclude the association ID if we are using an associaiton
-        if self.encrypted_key_assoc
-          exclude << "#{self.encrypted_key_assoc.to_s}_id"
+          raise NoEncryptionKeyGiven unless key.present?
+          Digest::SHA512.hexdigest(key)
         end
-
-        self.encrypted_exceptions |= exclude
       end
 
-      def attributes_without_excluded
-        self.attributes.reject { |a,v| self.encrypted_exceptions.include?(a) }
-      end
-
-      def find_key(key=nil)
-        k = \
-        if key # use the key given
-          key
-        elsif self.encrypted_key_value # use key given in definition
-          self.encrypted_key_value
-        elsif self.encrypted_key_assoc && self.encrypted_key_method
-          # use the key from the association given in definition
-          self.send(encrypted_key_assoc).send(encrypted_key_method) rescue nil
-        else
-          nil
-        end
-        raise NoEncryptionKeyGiven unless k
-        k[0,self.encrypted_max_key_len] # make sure key is not too long
-      end
-
-      def encrypt_attribute(plaintext, key)
-        raise unless plaintext.is_a?(String)
-
-        blowfish     = OpenSSL::Cipher::Cipher.new('BF-CBC')
-        blowfish.key = key = Digest::SHA2.hexdigest(key)
-        blowfish.iv  = iv  = Digest::SHA2.hexdigest(key)
-
+      def encrypt_plaintext(plaintext)
+        blowfish = initialize_blowfish
         blowfish.encrypt
-        encrypted = blowfish.update(plaintext)
-        Base64.encode64(encrypted << blowfish.final)
+
+        encrypted = blowfish.update plaintext.to_s
+        Base64.encode64(encrypted << blowfish.final).chomp
       end
 
-      def decrypt_attribute(encrypted, key)
-        blowfish     = OpenSSL::Cipher::Cipher.new('BF-CBC')
-        blowfish.key = key = Digest::SHA2.hexdigest(key)
-        blowfish.iv  = iv  = Digest::SHA2.hexdigest(key)
-
+      def decrypt_encrypted(encrypted)
+        blowfish = initialize_blowfish
         blowfish.decrypt
-        decrypted =  blowfish.update(Base64.decode64(encrypted))
+
+        decrypted =  blowfish.update Base64.decode64(encrypted)
         decrypted << blowfish.final
       end
 
-      def prepare_encryption_attributes
-        # TODO: figure out a better place for this to happen at the beginning
-        self.encrypted_exceptions = \
-                          fix_encryption_options(self.encrypted_exceptions)
-        self.encrypted_attributes = \
-                          fix_encryption_options(self.encrypted_attributes)
-        exclude_usual_suspects
-      end
-
-      def fix_encryption_options(value)
-        case
-        when value.blank?
-          []
-        when value.is_a?(Array)
-          value.map(&:to_s)
-        else
-          [value.to_s]
-        end.reject { |el| el.blank? }
+      def initialize_blowfish
+        blowfish     = OpenSSL::Cipher::Cipher.new 'BF-CBC'
+        blowfish.key = encryption_key[ 0 ... blowfish.key_len ]
+        blowfish.iv  = encryption_key[ 0 ... blowfish.iv_len  ]
+        blowfish
       end
     end
   end
