@@ -49,14 +49,21 @@ module Has                   #:nodoc:
         # And finally, not the ones the user chose to exclude:
         to_encrypt -= normalize_hae_options(options[:except])
 
-        include InstanceMethods
-
+        # Define the attr_accessors that encrypt/decrypt on demand:
         to_encrypt.each do |mth|
           define_method(mth.to_sym) do
-            @attributes[mth].nil? ? nil : decrypt_encrypted(@attributes[mth])
+            @plaintext_cache      ||= {}
+            @plaintext_cache[mth] ||= if @attributes[mth].nil?
+              nil
+            else
+              decrypt_encrypted(@attributes[mth])
+            end
           end
 
           define_method("#{mth}=".to_sym) do |plaintext|
+            @plaintext_cache      ||= {}
+            @plaintext_cache[mth]   = plaintext
+
             @attributes[mth] = if plaintext.blank?
               nil
             else
@@ -64,6 +71,8 @@ module Has                   #:nodoc:
             end
           end
         end
+
+        include InstanceMethods
       end
     end
 
