@@ -20,7 +20,11 @@ end
 namespace :test do
   desc 'Run the tests under ruby-prof'
   task :profile => [ :enable_test_profiling, :test ]
-  task(:enable_test_profiling) { ENV['ENABLE_TEST_PROFILING'] = 'yep' }
+  task(:enable_test_profiling) do
+    rm_f   'profile'
+    mkpath 'profile'
+    ENV['ENABLE_TEST_PROFILING'] = 'yep'
+  end
 end
 
 desc 'Generate documentation for the has_encrypted_attributes plugin.'
@@ -34,9 +38,9 @@ end
 
 desc 'Measures test coverage using rcov'
 task :rcov do
-  rm_f "coverage"
-  rm_f "tmp/coverage.data"
-  rcov = "rcov --rails --aggregate tmp/coverage.data -Ilib -x/Library"
+  rm_f   "coverage"
+  mkpath "coverage"
+  rcov = "rcov --rails --aggregate coverage/aggregate.data -Ilib -x/Library"
   system("#{rcov} --html #{Dir.glob('test/**/*_test.rb').join(' ')}")
   system("open coverage/index.html") if PLATFORM['darwin']
 end

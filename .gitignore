@@ -1,2 +1,5 @@
 test/*.sqlite3.db
 test/*.log
+coverage/*
+profile/*
+tmp/*

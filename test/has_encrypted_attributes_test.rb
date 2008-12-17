@@ -14,7 +14,7 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
   if defined?(RubyProf) && ENV['ENABLE_TEST_PROFILING']
     include RubyProf::Test
     PROFILE_OPTIONS[:output_dir] =
-      File.join(File.dirname(__FILE__), 'profiling')
+      File.join(File.dirname(__FILE__), '..', 'profile')
   end
 
   fixtures :users
