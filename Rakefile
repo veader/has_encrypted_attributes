@@ -31,3 +31,12 @@ Rake::RDocTask.new(:rdoc) do |rdoc|
   rdoc.rdoc_files.include('README')
   rdoc.rdoc_files.include('lib/**/*.rb')
 end
+
+desc 'Measures test coverage using rcov'
+task :rcov do
+  rm_f "coverage"
+  rm_f "tmp/coverage.data"
+  rcov = "rcov --rails --aggregate tmp/coverage.data -Ilib -x/Library"
+  system("#{rcov} --html #{Dir.glob('test/**/*_test.rb').join(' ')}")
+  system("open coverage/index.html") if PLATFORM['darwin']
+end
