@@ -17,6 +17,12 @@ Rake::TestTask.new(:test) do |t|
   t.verbose = true
 end
 
+namespace :test do
+  desc 'Run the tests under ruby-prof'
+  task :profile => [ :enable_test_profiling, :test ]
+  task(:enable_test_profiling) { ENV['ENABLE_TEST_PROFILING'] = 'yep' }
+end
+
 desc 'Generate documentation for the has_encrypted_attributes plugin.'
 Rake::RDocTask.new(:rdoc) do |rdoc|
   rdoc.rdoc_dir = 'rdoc'
