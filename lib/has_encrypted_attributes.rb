@@ -27,7 +27,7 @@ module Has                   #:nodoc:
 
       def has_encrypted_attributes(options = {})
         cattr_accessor :encrypted_key_assoc, :encrypted_key_method,
-                       :encrypted_key_value
+                       :encrypted_key_value, :encrypted_attributes
 
         self.encrypted_key_assoc  = options[:association] || nil
         self.encrypted_key_method = options[:key_method]  || :key
@@ -50,35 +50,38 @@ module Has                   #:nodoc:
         to_encrypt -= normalize_hae_options(options[:except])
 
         # Define the attr_accessors that encrypt/decrypt on demand:
-        to_encrypt.each do |mth|
-          define_method(mth.to_sym) do
-            @plaintext_cache      ||= {}
-            @plaintext_cache[mth] ||= if @attributes[mth].nil?
-              nil
-            else
-              decrypt_encrypted(@attributes[mth])
-            end
-          end
+        (self.encrypted_attributes = to_encrypt).each do |secret|
+          define_method(secret.to_sym) do
 
-          define_method("#{mth}=".to_sym) do |plaintext|
-            @plaintext_cache      ||= {}
-            @plaintext_cache[mth]   = plaintext
-
-            @attributes[mth] = if plaintext.blank?
-              nil
+            if new_record? || send("#{secret}_changed?".to_sym)
+              self[secret]
             else
-              encrypt_plaintext plaintext.to_s
+              @plaintext_cache         ||= {}
+              @plaintext_cache[secret] ||= decrypt_encrypted(self[secret])
             end
           end
         end
 
         include InstanceMethods
+
+        self.before_save :encrypt_attributes!
       end
     end
 
     module InstanceMethods
 
     private
+      def encrypt_attributes!
+        @plaintext_cache ||= {}
+
+        encrypted_attributes.each do |secret|
+          if send("#{secret}_changed?".to_sym)
+            @plaintext_cache[secret] = self[secret]
+            self[secret] = encrypt_plaintext(self[secret])
+          end
+        end
+      end
+
       def key_holder
         self.send(encrypted_key_assoc)
       end
@@ -100,6 +103,8 @@ module Has                   #:nodoc:
       end
 
       def encrypt_plaintext(plaintext)
+        return nil if plaintext.blank?
+
         blowfish = initialize_blowfish
         blowfish.encrypt
 
@@ -108,6 +113,8 @@ module Has                   #:nodoc:
       end
 
       def decrypt_encrypted(encrypted)
+        return nil if encrypted.blank?
+
         blowfish = initialize_blowfish
         blowfish.decrypt
 
