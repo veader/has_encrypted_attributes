@@ -34,23 +34,27 @@ module Has                   #:nodoc:
         self.encrypted_key_method = encrypted_key_method.to_sym
         self.encrypted_key_value  = options[:key]
 
-        to_encrypt = normalize_hae_options(options[:only])
+        self.encrypted_attributes = normalize_hae_options(options[:only])
 
         # Encrypt all attributes (so far) if 'only' was not given:
-        to_encrypt = columns.map { |c| c.name.to_s } if to_encrypt.blank?
+        if self.encrypted_attributes.blank?
+          self.encrypted_attributes = columns.map { |c| c.name.to_s }
+        end
 
         # But not the association ID if we are using one:
-        to_encrypt -= [ "#{encrypted_key_assoc}_id" ] if encrypted_key_assoc
+        if encrypted_key_assoc
+          self.encrypted_attributes -= [ "#{encrypted_key_assoc}_id" ]
+        end
 
         # And not these usual suspects:
-        to_encrypt -= %W[
+        self.encrypted_attributes -= %W[
           created_at created_on updated_at updated_on #{primary_key} ]
 
         # And finally, not the ones the user chose to exclude:
-        to_encrypt -= normalize_hae_options(options[:except])
+        self.encrypted_attributes -= normalize_hae_options(options[:except])
 
         # Define the attr_accessors that encrypt/decrypt on demand:
-        (self.encrypted_attributes = to_encrypt).each do |secret|
+        self.encrypted_attributes.each do |secret|
           define_method(secret.to_sym) do
 
             if new_record? || send("#{secret}_changed?".to_sym)
@@ -59,6 +63,14 @@ module Has                   #:nodoc:
               @plaintext_cache         ||= {}
               @plaintext_cache[secret] ||= decrypt_encrypted(self[secret])
             end
+          end
+        end
+
+        # Define the *_before_type_cast methods to call the on-demand
+        # decryption accessors:
+        self.encrypted_attributes.each do |secret|
+          define_method("#{secret}_before_type_cast".to_sym) do
+            self.send(secret.to_sym)
           end
         end
 

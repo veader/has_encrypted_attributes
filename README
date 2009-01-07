@@ -12,30 +12,36 @@ By default the _id of the association is excluded (ie: user_id), if needed
 and the usual created_at, updated_at, created_on, updated_on columns.
 
 Requires:
-  crypt gem : used for the Blowfish symmetric algorithm
-
+  Ruby compiled with OpenSSL turned on (and in turn with Blowfish turned on)
 
 Example
 =====================================
 
+Inline key:
+
 class Secrets
   has_encrypted_attributes :key => 'THIS IS MY KEY TEXT'
 end
+
+Key residing on an association:
 
 class MoreSecrets
   has_encrypted_attributes :association => :user
   # looks for key in self.user.key
 end
 
+Key residing on an association (with a custom name for the key):
+
 class StillMoreSecrets
   has_encrypted_attributes :association => :user, :key_method => :salt
   # looks for key in self.user.salt
 end
+
+You can also encrypt only some of the model attributes:
 
 class MostSecrets
   has_encrypted_attributes :except => [:year, :count]
   # will not try to encrypt year and count attributes
 end
 
-
-Copyright (c) 2008 Shawn Veader, released under the MIT license
+Copyright (c) 2008 Shawn Veader & Jordi Bunster. Licensed under MIT's.
