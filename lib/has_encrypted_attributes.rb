@@ -26,6 +26,16 @@ module Has                   #:nodoc:
       end
 
       def has_encrypted_attributes(options = {})
+        unless self.connected?
+          warning = %{
+            has_encrypted_attributes: Cannot encrypt anything on '#{to_s}',
+            table '#{table_name}' not found. }.squish
+          Rails.logger.warn warning
+          puts warning # Rake tasks
+
+          return false
+        end
+
         cattr_accessor :encrypted_key_assoc, :encrypted_key_method,
                        :encrypted_key_value, :encrypted_attributes
 
