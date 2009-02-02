@@ -26,16 +26,6 @@ module Has                   #:nodoc:
       end
 
       def has_encrypted_attributes(options = {})
-        if Rails.version < '2.3' and not self.connected?
-          warning = %{
-            has_encrypted_attributes: Cannot encrypt anything on '#{to_s}',
-            table '#{table_name}' not found. }.squish
-          Rails.logger.warn warning
-          puts warning # Rake tasks
-
-          return false
-        end
-
         cattr_accessor :encrypted_key_assoc, :encrypted_key_method,
                        :encrypted_key_value, :encrypted_attributes
 
@@ -48,7 +38,19 @@ module Has                   #:nodoc:
 
         # Encrypt all attributes (so far) if 'only' was not given:
         if self.encrypted_attributes.blank?
-          self.encrypted_attributes = columns.map { |c| c.name.to_s }
+          self.encrypted_attributes = begin
+            columns.map { |c| c.name.to_s }
+          rescue ActiveRecord::StatementInvalid => $e
+            error_message = %{
+              has_encrypted_attributes: error while getting the list of
+              columns for table '#{table_name}' on '#{to_s}': #{$e.message}.
+            }.squish
+
+            Rails.logger.error error_message
+            puts error_message # This mostly happens on pre-db rake tasks
+
+            return false
+          end
         end
 
         # But not the association ID if we are using one:
