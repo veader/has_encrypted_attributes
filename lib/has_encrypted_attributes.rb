@@ -26,7 +26,7 @@ module Has                   #:nodoc:
       end
 
       def has_encrypted_attributes(options = {})
-        unless self.connected?
+        if Rails.version < '2.3' and not self.connected?
           warning = %{
             has_encrypted_attributes: Cannot encrypt anything on '#{to_s}',
             table '#{table_name}' not found. }.squish
