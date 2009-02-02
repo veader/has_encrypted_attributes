@@ -7,6 +7,10 @@ rescue LoadError
   nil
 end
 
+class User < ActiveRecord::Base
+  has_one :secret
+end
+
 include Has::EncryptedAttributes
 
 class HasEncryptedAttributesTest < Test::Unit::TestCase
@@ -16,8 +20,6 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
     PROFILE_OPTIONS[:output_dir] =
       File.join(File.dirname(__FILE__), '..', 'profile')
   end
-
-  fixtures :users
 
   def teardown
     @secret_klass = nil
