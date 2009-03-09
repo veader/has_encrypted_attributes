@@ -28,33 +28,6 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
   # ========================================================================
   # TEST setup
 
-  def test_should_allow_association
-    secret_klass = setup_with_association_no_key_defined
-
-    secret = secret_klass.new
-    assert_equal :user, secret.encrypted_key_assoc
-    assert_equal :key, secret.encrypted_key_method
-    assert_nil secret.encrypted_key_value
-  end
-
-  def test_should_allow_association_with_alt_key
-    secret_klass = setup_with_association_with_key_defined
-
-    secret = secret_klass.new
-    assert_equal :user, secret.encrypted_key_assoc
-    assert_equal :alternate_key, secret.encrypted_key_method
-    assert_nil secret.encrypted_key_value
-  end
-
-  def test_should_allow_explicit_key
-    key = 'test1234'
-    secret_klass = setup_with_key_value_defined(key)
-
-    secret = secret_klass.new
-    assert_nil secret.encrypted_key_assoc
-    assert_equal key, secret.encrypted_key_value
-  end
-
   def test_should_require_key
     secret_klass = setup_with_key_value_defined(nil)
 
