@@ -182,6 +182,22 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
     assert_equal jfk_assassin, secret.who_killed_jfk
   end
 
+  def test_should_show_unencrypted_attributes_in_model_after_reload
+    @secret_klass = setup_with_key_value_defined
+
+    jfk_assassin = 'Mystery Man'
+    secret = @secret_klass.create(:who_killed_jfk => jfk_assassin)
+    assert_equal jfk_assassin, secret.reload.who_killed_jfk
+  end
+
+  def test_should_show_unencrypted_attributes_in_model_after_find
+    @secret_klass = setup_with_key_value_defined
+
+    jfk_assassin = 'Mystery Man'
+    secret = @secret_klass.create(:who_killed_jfk => jfk_assassin)
+    assert_equal jfk_assassin, @secret_klass.find(secret.id).who_killed_jfk
+  end
+
 # ========================================================================
 private
   def new_secret_class
