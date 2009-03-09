@@ -151,6 +151,12 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
     do_encryption_test
   end
 
+  def test_should_encrypt_attributes_with_key_method_on_self
+    @secret_klass = setup_with_key_method_on_self
+
+    do_encryption_test
+  end
+
   def test_should_encrypt_attributes_with_assoc_key
     @secret_klass = setup_with_association_no_key_defined
     user = create_user
@@ -189,6 +195,19 @@ private
     klass = new_secret_class
     klass.has_encrypted_attributes :association => :user,
                                    :except      => [:current_president]
+    klass
+  end
+
+  def setup_with_key_method_on_self
+    klass = new_secret_class
+    klass.has_encrypted_attributes :key_method  => :super_secret_key,
+                                   :except      => [:current_president]
+    klass.class_eval do
+      def super_secret_key
+        '45FGIRG91923G'
+      end
+    end
+
     klass
   end
 
