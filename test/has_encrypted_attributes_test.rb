@@ -151,7 +151,7 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
     do_encryption_test
   end
 
-  def test_should_encrypt_attributes_wth_assoc_key
+  def test_should_encrypt_attributes_with_assoc_key
     @secret_klass = setup_with_association_no_key_defined
     user = create_user
 
