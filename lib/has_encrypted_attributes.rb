@@ -25,80 +25,51 @@ module Has                   #:nodoc:
         (opts.is_a?(Array) ? opts : [ opts ]).reject(&:blank?).map(&:to_s)
       end
 
-      def has_encrypted_attributes(options = {})
-        cattr_accessor :encrypted_key_assoc, :encrypted_key_method,
-                       :encrypted_key_value, :encrypted_attributes
+      def has_encrypted_attributes(opts = {})
+        (opts = opts.to_options).assert_valid_keys(
+          :association, :key_method, :key, :only, :except)
 
-        self.encrypted_key_assoc  = options[:association] || nil
-        self.encrypted_key_method = options[:key_method]  || :key
-        self.encrypted_key_method = encrypted_key_method.to_sym
-        self.encrypted_key_value  = options[:key]
+        cattr_accessor :encrypted_attr_opts
+        self.encrypted_attr_opts = Struct.new(:only, :except,
+          :key_holder, :key_value, :key_method).new
 
-        self.encrypted_attributes = normalize_hae_options(options[:only])
+        encrypted_attr_opts.key_holder = opts[:association] || nil
+        encrypted_attr_opts.key_method = (opts[:key_method] || :key).to_sym
+        encrypted_attr_opts.key_value  = opts[:key]
+        encrypted_attr_opts.only       = normalize_hae_options opts[:only]
+        encrypted_attr_opts.except     = normalize_hae_options opts[:except]
 
-        # Encrypt all attributes (so far) if 'only' was not given:
-        if self.encrypted_attributes.blank?
-          self.encrypted_attributes = begin
-            columns.map { |c| c.name.to_s }
-          rescue ActiveRecord::StatementInvalid => $e
-            error_message = %{
-              has_encrypted_attributes: error while getting the list of
-              columns for table '#{table_name}' on '#{to_s}': #{$e.message}.
-            }.squish
-
-            Rails.logger.error error_message
-            puts error_message # This mostly happens on pre-db rake tasks
-
-            return false
-          end
+        # Don't encrypt the association ID if we are using one:
+        if encrypted_attr_opts.key_holder
+          encrypted_attr_opts.except |= [
+            "#{encrypted_attr_opts.key_holder}_id" ]
         end
 
-        # But not the association ID if we are using one:
-        if encrypted_key_assoc
-          self.encrypted_attributes -= [ "#{encrypted_key_assoc}_id" ]
-        end
-
-        # And not these usual suspects:
-        self.encrypted_attributes -= %W[
+        # Don't encrypt these usual suspects:
+        encrypted_attr_opts.except |= %W[
           created_at created_on updated_at updated_on #{primary_key} ]
-
-        # And finally, not the ones the user chose to exclude:
-        self.encrypted_attributes -= normalize_hae_options(options[:except])
-
-        # Define the attr_accessors that encrypt/decrypt on demand:
-        self.encrypted_attributes.each do |secret|
-          define_method(secret.to_sym) do
-
-            if new_record? || send("#{secret}_changed?".to_sym)
-              self[secret]
-            else
-              @plaintext_cache         ||= {}
-              @plaintext_cache[secret] ||= decrypt_encrypted(self[secret])
-            end
-          end
-        end
-
-        # Define the *_before_type_cast methods to call the on-demand
-        # decryption accessors:
-        self.encrypted_attributes.each do |secret|
-          define_method("#{secret}_before_type_cast".to_sym) do
-            self.send(secret.to_sym)
-          end
-        end
 
         include InstanceMethods
 
         self.before_save :encrypt_attributes!
+        self.after_save  :decrypt_attributes!
       end
     end
 
     module InstanceMethods
 
+    protected
+
+      def after_find
+        decrypt_attributes!
+      end
+
     private
+
       def encrypt_attributes!
         @plaintext_cache ||= {}
 
-        encrypted_attributes.each do |secret|
+        attributes_needing_encryption.each do |secret|
           if send("#{secret}_changed?".to_sym)
             @plaintext_cache[secret] = self[secret]
             self[secret] = encrypt_plaintext(self[secret])
@@ -106,18 +77,42 @@ module Has                   #:nodoc:
         end
       end
 
-      def key_holder
-        self.send(encrypted_key_assoc)
+      def decrypt_attributes!
+        @plaintext_cache ||= {}
+
+        attributes_needing_encryption.each do |secret|
+          self[secret] = if @plaintext_cache[secret]
+            @plaintext_cache.delete(secret)
+          else
+            decrypt_encrypted(self[secret])
+          end
+        end
+      end
+
+      def attributes_needing_encryption
+        @_attributes_needing_encryption ||= begin
+          if encrypted_attr_opts.only.present?
+            encrypted_attr_opts.only - encrypted_attr_opts.except
+          else
+            attribute_names - encrypted_attr_opts.except
+          end
+        end
       end
 
       def encryption_key
         @encryption_key ||= begin
-          key = if encrypted_key_value.present?
-            encrypted_key_value # use key given in definition
-          elsif encrypted_key_assoc && encrypted_key_method
+          key_holder = if encrypted_attr_opts.key_holder.present?
+            self.send(encrypted_attr_opts.key_holder.to_sym)
+          else
+            self
+          end
+
+          key = if encrypted_attr_opts.key_value.present?
+            encrypted_attr_opts.key_value # use key given in definition
+          elsif key_holder && encrypted_attr_opts.key_method
             # use the key from the association given in definition
-            if key_holder.respond_to?(encrypted_key_method)
-              key_holder.send(encrypted_key_method)
+            if key_holder.respond_to?(encrypted_attr_opts.key_method)
+              key_holder.send(encrypted_attr_opts.key_method)
             end
           end
 
