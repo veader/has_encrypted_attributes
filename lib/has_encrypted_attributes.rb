@@ -46,7 +46,7 @@ module Has                   #:nodoc:
         end
 
         # Don't encrypt these usual suspects:
-        encrypted_attr_opts.except |= %W[
+        encrypted_attr_opts.except |= %W[ lock_version
           created_at created_on updated_at updated_on #{primary_key} ]
 
         include InstanceMethods
