@@ -3,7 +3,7 @@ RAILS_ROOT = File.dirname(__FILE__)
 # RAILS_GEM_VERSION = '2.0.2' unless defined? RAILS_GEM_VERSION
 
 require 'rubygems'
-require 'redgreen' rescue nil
+require 'leftright' rescue nil
 require 'sqlite3'
 require 'test/unit'
 require 'active_record'
