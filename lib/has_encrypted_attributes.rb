@@ -59,6 +59,12 @@ module Has                   #:nodoc:
 
     module InstanceMethods
 
+    protected
+
+      def after_find
+        decrypt_attributes!
+      end
+
     private
 
       def encrypt_attributes!
