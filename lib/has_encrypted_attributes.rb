@@ -53,17 +53,11 @@ module Has                   #:nodoc:
 
         self.before_save :encrypt_attributes!
         self.after_save  :decrypt_attributes!
-        self.after_find  :after_find # required for 3.0... WTF?
+        self.after_find  :decrypt_attributes!
       end
     end
 
     module InstanceMethods
-
-    protected
-
-      def after_find
-        decrypt_attributes!
-      end
 
     private
 
@@ -82,11 +76,8 @@ module Has                   #:nodoc:
         @plaintext_cache ||= {}
 
         attributes_needing_encryption.each do |secret|
-          self[secret] = if @plaintext_cache[secret]
-            @plaintext_cache.delete(secret)
-          else
-            decrypt_encrypted(self[secret])
-          end
+          self[secret] = \
+            (@plaintext_cache[secret] ||= decrypt_encrypted(self[secret]))
         end
       end
 

@@ -171,6 +171,17 @@ class HasEncryptedAttributesTest < Test::Unit::TestCase
     do_encryption_test(user)
   end
 
+  def test_should_safely_work_with_saves_when_no_changes_found
+    @secret_klass = setup_with_key_value_defined
+
+    jfk_assassin = 'Mystery Man'
+    secret = @secret_klass.create(:who_killed_jfk => jfk_assassin)
+    assert_equal jfk_assassin, secret.who_killed_jfk
+    assert secret.changes.blank?
+    secret.save # should be a no-op
+    assert_equal jfk_assassin, secret.who_killed_jfk
+  end
+
   # ========================================================================
   # TEST after_* in action
 

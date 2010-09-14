@@ -1,3 +1,2 @@
 - allow different encryption algorithms
-- use :only to specify which attributes to encrypt
 - exclude attributes based on types (ie: ints, dates, etc)
