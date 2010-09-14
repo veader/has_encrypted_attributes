@@ -53,6 +53,7 @@ module Has                   #:nodoc:
 
         self.before_save :encrypt_attributes!
         self.after_save  :decrypt_attributes!
+        self.after_find  :after_find # required for 3.0... WTF?
       end
     end
 
