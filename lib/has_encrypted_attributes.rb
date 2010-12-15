@@ -129,14 +129,23 @@ module Has                   #:nodoc:
         Base64.encode64(encrypted << blowfish.final).chomp
       end
 
+      # exception must have changed names over time. safeguard...
+      OpenSSLCipherError = OpenSSL::Cipher.const_defined?(:CipherError) ? \
+              OpenSSL::Cipher::CipherError : \
+              OpenSSL::CipherError
+
       def decrypt_encrypted(encrypted)
         return nil if encrypted.blank?
 
-        blowfish = initialize_blowfish
-        blowfish.decrypt
+        begin
+          blowfish = initialize_blowfish
+          blowfish.decrypt
 
-        decrypted =  blowfish.update Base64.decode64(encrypted)
-        decrypted << blowfish.final
+          decrypted =  blowfish.update Base64.decode64(encrypted)
+          decrypted << blowfish.final
+        rescue OpenSSLCipherError
+          encrypted # return the original if the decrypt fails.
+        end
       end
 
       def initialize_blowfish
