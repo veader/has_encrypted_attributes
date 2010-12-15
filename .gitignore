@@ -3,3 +3,5 @@ test/*.log
 coverage/*
 profile/*
 tmp/*
+*.sqlite.db
+*.sqlite3.db
